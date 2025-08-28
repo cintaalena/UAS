@@ -1,0 +1,156 @@
+name: Security CI (SAST, Secrets, Docker Scan)
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write   # diperlukan untuk upload SARIF ke Code Scanning
+  actions: read
+
+concurrency:
+  group: security-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sast-and-scans:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      # ===== (1) Semgrep SAST (bahasa-agnostik + rule PHP) =====
+      - name: Semgrep SAST
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: |
+            p/ci
+            p/php
+            p/owasp-top-ten
+          generateSarif: "1"
+          publishResults: "1"      # otomatis kirim ke Code Scanning
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }} # optional; kalau kosong juga jalan (tanpa dashboard)
+
+      # ===== (2) Trivy scan filesystem (vuln + misconfig + secrets) =====
+      - name: Trivy FS scan
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: 'fs'
+          scanners: 'vuln,misconfig,secret,license'
+          ignore-unfixed: false
+          format: 'sarif'
+          output: 'trivy-fs.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload Trivy FS SARIF to GitHub
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs.sarif
+
+      # ===== (3) Gitleaks (secret scanning tambahan) =====
+      - name: Gitleaks scan
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          args: detect --no-git -v --report-format sarif --report-path gitleaks.sarif
+      - name: Upload Gitleaks SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gitleaks.sarif
+
+      # ===== (4) Build Docker image (jika ada Dockerfile) =====
+      - name: Check if Dockerfile exists
+        id: dockerfile_check
+        run: |
+          if [ -f "./Dockerfile" ]; then
+            echo "has_dockerfile=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_dockerfile=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.dockerfile_check.outputs.has_dockerfile == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image for scanning
+        if: steps.dockerfile_check.outputs.has_dockerfile == 'true'
+        run: docker build -t app:ci .
+
+      # ===== (5) Trivy image scan =====
+      - name: Trivy Image scan
+        if: steps.dockerfile_check.outputs.has_dockerfile == 'true'
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: 'app:ci'
+          format: 'sarif'
+          output: 'trivy-image.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+      - name: Upload Trivy Image SARIF
+        if: steps.dockerfile_check.outputs.has_dockerfile == 'true'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-image.sarif
+
+      # ===== (6) Dockle (Docker best practices) =====
+      - name: Dockle lint
+        if: steps.dockerfile_check.outputs.has_dockerfile == 'true'
+        uses: goodwithtech/dockle-action@v0
+        with:
+          image: app:ci
+          failure-threshold: WARN
+          format: 'json'
+          output: 'dockle.json'
+
+      - name: Save scan artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            trivy-fs.sarif
+            gitleaks.sarif
+            trivy-image.sarif
+            dockle.json
+          if-no-files-found: ignore
+
+  # ===== (7) (OPSIONAL) PHP Static Analysis: phpstan/psalm via Composer =====
+  php-static-analysis:
+    runs-on: ubuntu-latest
+    needs: sast-and-scans
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect composer.json
+        id: has_composer
+        run: |
+          if [ -f "composer.json" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup PHP
+        if: steps.has_composer.outputs.exists == 'true'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+
+      - name: Install dependencies
+        if: steps.has_composer.outputs.exists == 'true'
+        run: |
+          composer install --no-interaction --no-progress --prefer-dist || true
+
+      - name: PHPStan (level max) jika tersedia
+        if: steps.has_composer.outputs.exists == 'true' && hashFiles('vendor/bin/phpstan') != ''
+        run: |
+          vendor/bin/phpstan analyse --memory-limit=1G --error-format=github || true
+
+      - name: Psalm jika tersedia
+        if: steps.has_composer.outputs.exists == 'true' && hashFiles('vendor/bin/psalm') != ''
+        run: |
+          vendor/bin/psalm --output-format=github || true
