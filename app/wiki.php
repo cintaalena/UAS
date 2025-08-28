@@ -3,7 +3,7 @@
 <h2>Wiki</h2>
 
 <form method="get">
-  <input name="q" value="<?= isset($_GET['q']) ? htmlspecialchars($_GET['q'], ENT_QUOTES, 'UTF-8') : '' ?>" placeholder="Search title...">
+  <input name="q" value="<?= isset($_GET['q']) ? htmlspecialchars((string)$_GET['q'], ENT_QUOTES, 'UTF-8') : '' ?>" placeholder="Search title...">
   <button type="submit">Search</button>
 </form>
 

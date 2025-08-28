@@ -16,6 +16,9 @@ class Profile {
 }
 
 if ($_POST) {
+    // Verifikasi CSRF
+    csrf_verify();
+
     $u = $_POST['username'] ?? '';
     $p = $_POST['password'] ?? '';
 
@@ -26,12 +29,24 @@ if ($_POST) {
 
     $isValid = false;
     if ($row) {
-        // Jika sudah migrasi ke password_hash(), gunakan password_verify()
-        if (password_get_info($row['password'])['algo'] !== 0) {
+        $info = password_get_info($row['password']);
+        if ($info['algo'] !== 0) {
+            // Sudah hashed → normal verify
             $isValid = password_verify($p, $row['password']);
+            // (opsional) rehash jika algoritma/parameter default berubah
+            // if ($isValid && password_needs_rehash($row['password'], PASSWORD_DEFAULT)) {
+            //     $newHash = password_hash($p, PASSWORD_DEFAULT);
+            //     $upd = $GLOBALS['PDO']->prepare("UPDATE users SET password=? WHERE username=?");
+            //     $upd->execute([$newHash, $u]);
+            // }
         } else {
-            // Fallback sementara untuk data lama plaintext (lihat patch di init.php untuk migrasi)
-            $isValid = hash_equals($row['password'], $p);
+            // Password legacy plaintext → migrasi on-the-fly jika cocok
+            if (hash_equals($row['password'], $p)) {
+                $isValid = true;
+                $newHash = password_hash($p, PASSWORD_DEFAULT);
+                $upd = $GLOBALS['PDO']->prepare("UPDATE users SET password=? WHERE username=?");
+                $upd->execute([$newHash, $u]);
+            }
         }
     }
 
@@ -57,6 +72,7 @@ if ($_POST) {
 <h2>Login</h2>
 <?php if (!empty($error)) echo "<p style='color:red'>" . htmlspecialchars($error, ENT_QUOTES, 'UTF-8') . "</p>"; ?>
 <form method="post">
+  <?= csrf_field() ?>
   <label>Username <input name="username"></label>
   <label>Password <input type="password" name="password"></label>
   <button type="submit">Login</button>

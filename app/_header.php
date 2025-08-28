@@ -16,7 +16,10 @@
       <a href="comment.php">Comments</a> |
       <a href="crash.php">Crash Test</a> |
       <a href="ping.php">Ping Test</a> |
-      <a href="logout.php">Logout</a>
+      <form action="logout.php" method="post" style="display:inline">
+        <?= csrf_field() ?>
+        <button style="background:none;border:none;color:inherit;cursor:pointer;padding:0">Logout</button>
+      </form>
     </nav>
   <?php endif; ?>
   <hr>

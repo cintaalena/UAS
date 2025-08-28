@@ -2,6 +2,7 @@
 <?php include '_header.php'; ?>
 <h2>Post comments</h2>
 <form method="post">
+  <?= csrf_field() ?>
   <input name="author" placeholder="Name...">
   <textarea name="content" placeholder="Comments..."></textarea>
   <button>Post</button>
@@ -9,6 +10,7 @@
 
 <?php
 if ($_POST) {
+    csrf_verify(); // ← verifikasi CSRF
     $stmt = $GLOBALS['PDO']->prepare(
         "INSERT INTO comments(author,content,created_at) VALUES(?,?,datetime('now'))"
     );
