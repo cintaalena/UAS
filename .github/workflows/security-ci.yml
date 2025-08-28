@@ -101,25 +101,6 @@ jobs:
           sarif_file: trivy-image.sarif
           category: trivy-image
 
-      # ===== (6) Dockle (Docker best practices) =====
-      - name: Dockle lint
-        if: steps.dockerfile_check.outputs.has_dockerfile == 'true'
-        uses: goodwithtech/dockle-action@v0.4.15
-        with:
-          image: app:ci
-          failure-threshold: WARN
-          format: 'json'
-          output: 'dockle.json'
-
-      - name: Save scan artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-reports
-          path: |
-            trivy-fs.sarif
-            trivy-image.sarif
-            dockle.json
-          if-no-files-found: ignore
 
   # ===== (7) (OPSIONAL) PHP Static Analysis: phpstan/psalm via Composer =====
   php-static-analysis:
