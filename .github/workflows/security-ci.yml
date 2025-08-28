@@ -99,7 +99,7 @@ jobs:
       # ===== (6) Dockle (Docker best practices) =====
       - name: Dockle lint
         if: steps.dockerfile_check.outputs.has_dockerfile == 'true'
-        uses: goodwithtech/dockle-action@v0
+        uses: goodwithtech/dockle-action@v0.4.15
         with:
           image: app:ci
           failure-threshold: WARN
