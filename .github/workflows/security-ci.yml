@@ -35,7 +35,7 @@ jobs:
           generateSarif: "1"
           publishResults: "1"      # otomatis kirim ke Code Scanning
         env:
-          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }} # optional; kalau kosong juga jalan (tanpa dashboard)
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }} # optional
 
       # ===== (2) Trivy scan filesystem (vuln + misconfig + secrets) =====
       - name: Trivy FS scan
@@ -52,12 +52,14 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-fs.sarif
+          category: trivy-fs
 
       # ===== (3) Gitleaks (secret scanning tambahan) =====
       - name: Gitleaks scan
         uses: gitleaks/gitleaks-action@v2
         with:
           args: detect --source . --no-git --report-format json --report-path gitleaks.json
+
       - name: Upload Gitleaks Report
         uses: actions/upload-artifact@v4
         with:
@@ -91,11 +93,13 @@ jobs:
           format: 'sarif'
           output: 'trivy-image.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
+
       - name: Upload Trivy Image SARIF
         if: steps.dockerfile_check.outputs.has_dockerfile == 'true'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-image.sarif
+          category: trivy-image
 
       # ===== (6) Dockle (Docker best practices) =====
       - name: Dockle lint
@@ -113,7 +117,6 @@ jobs:
           name: security-reports
           path: |
             trivy-fs.sarif
-            gitleaks.sarif
             trivy-image.sarif
             dockle.json
           if-no-files-found: ignore
