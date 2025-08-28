@@ -11,9 +11,17 @@ if ($needSeed) {
         CREATE TABLE articles(id INTEGER PRIMARY KEY, title TEXT, body TEXT);
         CREATE TABLE comments(id INTEGER PRIMARY KEY, author TEXT, content TEXT, created_at TEXT);
     ");
-    $pdo->exec("INSERT INTO users(username,password,role) VALUES('alice','alice123','user')");
-    $pdo->exec("INSERT INTO users(username,password,role) VALUES('admin','admin123','admin')");
+
+    // Seed user dengan password yang sudah di-hash
+    $alicePwd = password_hash('alice123', PASSWORD_DEFAULT);
+    $adminPwd = password_hash('admin123', PASSWORD_DEFAULT);
+
+    $stmt = $pdo->prepare("INSERT INTO users(username,password,role) VALUES(?,?,?)");
+    $stmt->execute(['alice', $alicePwd, 'user']);
+    $stmt->execute(['admin', $adminPwd, 'admin']);
+
     $pdo->exec("INSERT INTO articles(title,body) VALUES('PHP','Server side scripting')");
     $pdo->exec("INSERT INTO articles(title,body) VALUES('Java','Programming language')");
 }
+
 $GLOBALS['PDO'] = $pdo;

@@ -1,15 +1,23 @@
 <?php include 'auth.php'; ?>
 <?php include '_header.php'; ?>
-<h2>Wiki Search</h2>
-<form><input name="q"><button>Search</button></form>
+<h2>Wiki</h2>
+
+<form method="get">
+  <input name="q" value="<?= isset($_GET['q']) ? htmlspecialchars($_GET['q'], ENT_QUOTES, 'UTF-8') : '' ?>" placeholder="Search title...">
+  <button type="submit">Search</button>
+</form>
+
 <?php
-if (isset($_GET['q'])) {
-    $q = $_GET['q'];
-    $sql = "SELECT * FROM articles WHERE title LIKE '%$q%'";
-    echo "<p>Query: $sql</p>";
-    $res = $GLOBALS['PDO']->query($sql);
-    foreach ($res as $row) {
-        echo "<li>{$row['title']}: {$row['body']}</li>";
+$q = isset($_GET['q']) ? (string)$_GET['q'] : '';
+if ($q !== '') {
+    $like = '%' . $q . '%';
+    $stmt = $GLOBALS['PDO']->prepare("SELECT title, body FROM articles WHERE title LIKE ?");
+    $stmt->execute([$like]);
+    echo "<p>Query: " . htmlspecialchars($q, ENT_QUOTES, 'UTF-8') . "</p>";
+    foreach ($stmt as $row) {
+        $title = htmlspecialchars($row['title'], ENT_QUOTES, 'UTF-8');
+        $body  = htmlspecialchars($row['body'],  ENT_QUOTES, 'UTF-8');
+        echo "<li>{$title}: {$body}</li>";
     }
 }
 ?>

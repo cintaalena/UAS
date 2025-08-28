@@ -9,14 +9,19 @@
 
 <?php
 if ($_POST) {
-    $stmt = $GLOBALS['PDO']->prepare("INSERT INTO comments(author,content,created_at) VALUES(?,?,datetime('now'))");
+    $stmt = $GLOBALS['PDO']->prepare(
+        "INSERT INTO comments(author,content,created_at) VALUES(?,?,datetime('now'))"
+    );
     $stmt->execute([$_POST['author'], $_POST['content']]);
 }
 ?>
 <h3>Comment lists : </h3>
 <?php
 foreach ($GLOBALS['PDO']->query("SELECT * FROM comments ORDER BY id DESC") as $row) {
-    echo "<p><b>{$row['author']}</b>: {$row['content']}</p>";
+    $author = htmlspecialchars($row['author'], ENT_QUOTES, 'UTF-8');
+    // Escape lalu izinkan line break
+    $content = nl2br(htmlspecialchars($row['content'], ENT_QUOTES, 'UTF-8'));
+    echo "<p><b>{$author}</b>: {$content}</p>";
 }
 ?>
 <?php include '_footer.php'; ?>
